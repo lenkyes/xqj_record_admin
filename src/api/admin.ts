@@ -23,6 +23,9 @@ function list<T>(url: string, params?: PageQuery) {
   return requestData<PageResult<T> | T[]>({ url, method: 'GET', params }).then(normalizePage<T>)
 }
 
+const RELEASE_UPLOAD_TIMEOUT = 5 * 60 * 1000
+const RELEASE_ACTION_TIMEOUT = 60 * 1000
+
 export const authApi = {
   login(account: string, password: string) {
     return requestData<LoginResult>({
@@ -161,16 +164,25 @@ export const releasesApi = {
     return requestData<AppRelease>({ url: `/app/releases/${id}`, method: 'GET' })
   },
   create(data: FormData | Partial<AppRelease>) {
-    return requestData<AppRelease>({ url: '/app/releases', method: 'POST', data })
+    return requestData<AppRelease>({ url: '/app/releases', method: 'POST', data, timeout: RELEASE_UPLOAD_TIMEOUT })
   },
   update(id: number, data: FormData | Partial<AppRelease>) {
-    return requestData<AppRelease>({ url: `/app/releases/${id}`, method: 'PATCH', data })
+    return requestData<AppRelease>({
+      url: `/app/releases/${id}`,
+      method: 'PATCH',
+      data,
+      timeout: RELEASE_UPLOAD_TIMEOUT,
+    })
   },
   publish(id: number) {
-    return requestData<AppRelease>({ url: `/app/releases/${id}/publish`, method: 'POST' })
+    return requestData<AppRelease>({ url: `/app/releases/${id}/publish`, method: 'POST', timeout: RELEASE_ACTION_TIMEOUT })
   },
   unpublish(id: number) {
-    return requestData<AppRelease>({ url: `/app/releases/${id}/unpublish`, method: 'POST' })
+    return requestData<AppRelease>({
+      url: `/app/releases/${id}/unpublish`,
+      method: 'POST',
+      timeout: RELEASE_ACTION_TIMEOUT,
+    })
   },
   remove(id: number) {
     return requestData<null>({ url: `/app/releases/${id}`, method: 'DELETE' })

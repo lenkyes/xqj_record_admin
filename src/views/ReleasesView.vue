@@ -32,6 +32,8 @@ const dialogVisible = ref(false)
 const drawerVisible = ref(false)
 const current = ref<AppRelease | null>(null)
 const apkFile = ref<File | null>(null)
+const saving = ref(false)
+const publishingId = ref<number | null>(null)
 const form = reactive({
   platform: 'android',
   channel: 'stable',
@@ -96,29 +98,48 @@ function toFormData() {
   return data
 }
 
+function isMessageBoxCancel(error: unknown) {
+  return error === 'cancel' || error === 'close'
+}
+
 async function save() {
+  if (saving.value) return
   if (!current.value && !apkFile.value) {
     ElMessage.warning('创建版本时请上传 APK 文件')
     return
   }
-  if (current.value) await releasesApi.update(current.value.id, toFormData())
-  else await releasesApi.create(toFormData())
-  ElMessage.success('版本信息已保存')
-  dialogVisible.value = false
-  load()
+
+  saving.value = true
+  try {
+    if (current.value) await releasesApi.update(current.value.id, toFormData())
+    else await releasesApi.create(toFormData())
+    ElMessage.success('版本信息已保存')
+    dialogVisible.value = false
+    await load()
+  } finally {
+    saving.value = false
+  }
 }
 
 async function togglePublish(row: AppRelease) {
+  if (publishingId.value) return
   const action = row.published ? '下架' : '发布'
-  await ElMessageBox.confirm(`确认${action}版本 ${row.version_name || row.id}？`, `${action}版本`, {
-    type: row.published ? 'warning' : 'success',
-    confirmButtonText: action,
-    cancelButtonText: '取消',
-  })
-  if (row.published) await releasesApi.unpublish(row.id)
-  else await releasesApi.publish(row.id)
-  ElMessage.success(`已${action}`)
-  load()
+  publishingId.value = row.id
+  try {
+    await ElMessageBox.confirm(`确认${action}版本 ${row.version_name || row.id}？`, `${action}版本`, {
+      type: row.published ? 'warning' : 'success',
+      confirmButtonText: action,
+      cancelButtonText: '取消',
+    })
+    if (row.published) await releasesApi.unpublish(row.id)
+    else await releasesApi.publish(row.id)
+    ElMessage.success(`已${action}`)
+    await load()
+  } catch (error) {
+    if (!isMessageBoxCancel(error)) throw error
+  } finally {
+    publishingId.value = null
+  }
 }
 
 async function remove(row: AppRelease) {
@@ -137,8 +158,8 @@ async function remove(row: AppRelease) {
   <div class="page-flow">
     <PageHeader title="App 发布" description="管理 Android 版本、渠道、强制更新和发布状态；上传 APK 使用 multipart 字段。" permission="app_releases.read">
       <template #actions>
-        <el-button :icon="RefreshCw" @click="load">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="openCreate">新建版本</el-button>
+        <el-button :icon="RefreshCw" :disabled="saving || Boolean(publishingId)" @click="load">刷新</el-button>
+        <el-button type="primary" :icon="Plus" :disabled="saving || Boolean(publishingId)" @click="openCreate">新建版本</el-button>
       </template>
     </PageHeader>
 
@@ -186,12 +207,18 @@ async function remove(row: AppRelease) {
         </el-table-column>
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button link :type="row.published ? 'warning' : 'success'" @click="togglePublish(row)">
+            <el-button link type="primary" :disabled="Boolean(publishingId)" @click="openDetail(row)">详情</el-button>
+            <el-button link type="primary" :disabled="Boolean(publishingId)" @click="openEdit(row)">编辑</el-button>
+            <el-button
+              link
+              :type="row.published ? 'warning' : 'success'"
+              :loading="publishingId === row.id"
+              :disabled="Boolean(publishingId)"
+              @click="togglePublish(row)"
+            >
               {{ row.published ? '下架' : '发布' }}
             </el-button>
-            <el-button link type="danger" @click="remove(row)">删除</el-button>
+            <el-button link type="danger" :disabled="Boolean(publishingId)" @click="remove(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -210,7 +237,16 @@ async function remove(row: AppRelease) {
       </div>
     </section>
 
-    <el-dialog v-model="dialogVisible" :title="current ? '编辑版本' : '新建版本'" width="680px">
+    <el-dialog
+      v-model="dialogVisible"
+      v-loading="saving"
+      :title="current ? '编辑版本' : '新建版本'"
+      width="680px"
+      element-loading-text="正在保存版本..."
+      :close-on-click-modal="!saving"
+      :close-on-press-escape="!saving"
+      :show-close="!saving"
+    >
       <el-form label-position="top" class="release-form">
         <div class="form-grid two">
           <el-form-item label="平台"><el-input v-model="form.platform" /></el-form-item>
@@ -226,14 +262,14 @@ async function remove(row: AppRelease) {
         <el-form-item label="发布说明"><el-input v-model="form.release_notes" type="textarea" :rows="4" /></el-form-item>
         <el-form-item label="强制更新"><el-switch v-model="form.force_update" /></el-form-item>
         <el-form-item label="APK 文件">
-          <el-upload :auto-upload="false" :limit="1" accept=".apk" :on-change="onFileChange">
-            <el-button>选择 APK</el-button>
+          <el-upload :auto-upload="false" :disabled="saving" :limit="1" accept=".apk" :on-change="onFileChange">
+            <el-button :disabled="saving">选择 APK</el-button>
           </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="save">保存</el-button>
+        <el-button :disabled="saving" @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" :disabled="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
 

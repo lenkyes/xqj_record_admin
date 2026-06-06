@@ -18,15 +18,31 @@ http.interceptors.request.use((config) => {
   return config
 })
 
+function responseMessage(data: unknown) {
+  if (!data || typeof data !== 'object') return ''
+  const payload = data as { message?: unknown; error?: unknown }
+  if (typeof payload.message === 'string' && payload.message) return payload.message
+  if (typeof payload.error === 'string' && payload.error) return payload.error
+  return ''
+}
+
+export function getRequestErrorMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || /timeout/i.test(error.message)) {
+      return '请求超时，请稍后查看结果或重试'
+    }
+    return responseMessage(error.response?.data) || error.message || '请求失败'
+  }
+
+  if (error instanceof Error) return error.message || '请求失败'
+  return '请求失败'
+}
+
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    const status = error?.response?.status
-    const message =
-      error?.response?.data?.message ||
-      error?.response?.data?.error ||
-      error?.message ||
-      '请求失败'
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined
+    const message = getRequestErrorMessage(error)
 
     if (status === 401) {
       clearSession()
