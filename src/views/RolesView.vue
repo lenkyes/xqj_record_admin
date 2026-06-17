@@ -32,7 +32,7 @@ const form = reactive({
 const groupedPermissions = computed(() => {
   const groups = new Map<string, Permission[]>()
   permissions.value.forEach((permission) => {
-    const group = permission.group || String(permission.code).split('.')[0] || 'misc'
+    const group = permission.module || permission.group || String(permission.code).split('.')[0] || 'misc'
     groups.set(group, [...(groups.get(group) || []), permission])
   })
   return Array.from(groups.entries()).map(([name, items]) => ({ name, items }))
@@ -47,7 +47,11 @@ function rolePermissionCodes(role: Role) {
 }
 
 function isBuiltin(role: Role) {
-  return role.code === 'super_admin' || role.name === 'super_admin'
+  return Boolean(role.builtin) || role.code === 'super_admin' || role.name === 'super_admin'
+}
+
+function normalizeCode(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9_.-]/g, '')
 }
 
 function openCreate() {
@@ -74,9 +78,18 @@ function openEdit(row: Role) {
 
 async function save() {
   if (current.value) {
-    await rbacApi.updateRole(current.value.id, form)
+    await rbacApi.updateRole(current.value.id, {
+      name: form.name,
+      description: form.description,
+      permission_codes: form.permission_codes,
+    })
   } else {
-    await rbacApi.createRole(form)
+    await rbacApi.createRole({
+      code: normalizeCode(form.code),
+      name: form.name,
+      description: form.description,
+      permission_codes: form.permission_codes,
+    })
   }
   ElMessage.success('角色已保存')
   dialogVisible.value = false
@@ -158,7 +171,14 @@ onMounted(async () => {
       <el-form label-position="top">
         <div class="form-grid two">
           <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
-          <el-form-item label="编码"><el-input v-model="form.code" placeholder="ops_admin" /></el-form-item>
+          <el-form-item label="编码">
+            <el-input
+              v-model="form.code"
+              placeholder="ops_admin"
+              :disabled="Boolean(current)"
+              @input="form.code = normalizeCode(String($event))"
+            />
+          </el-form-item>
         </div>
         <el-form-item label="描述"><el-input v-model="form.description" /></el-form-item>
         <el-form-item label="权限码">
@@ -166,7 +186,7 @@ onMounted(async () => {
             <section v-for="group in groupedPermissions" :key="group.name" class="permission-group">
               <h4>{{ group.name }}</h4>
               <el-checkbox v-for="permission in group.items" :key="permission.code" :label="permission.code">
-                {{ permission.code }}
+                {{ permission.name || permission.code }}
               </el-checkbox>
             </section>
           </el-checkbox-group>

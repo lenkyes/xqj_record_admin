@@ -34,12 +34,18 @@ const form = reactive({
   email: '',
   nickname: '',
   password: '',
+  new_password: '',
+  avatar_url: '',
   status: 'active',
-  role_ids: [] as number[],
+  role_codes: [] as string[],
 })
 
-function roleIds(admin: AdminProfile) {
-  return (admin.roles || []).map((role) => role.id).filter(Boolean)
+function roleCodes(admin: AdminProfile) {
+  return (admin.roles || []).map((role) => role.code).filter(Boolean) as string[]
+}
+
+function normalizeCode(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9_.-]/g, '')
 }
 
 function openCreate() {
@@ -49,8 +55,10 @@ function openCreate() {
     email: '',
     nickname: '',
     password: '',
+    new_password: '',
+    avatar_url: '',
     status: 'active',
-    role_ids: [],
+    role_codes: [],
   })
   dialogVisible.value = true
 }
@@ -62,23 +70,34 @@ function openEdit(row: AdminProfile) {
     email: row.email || '',
     nickname: row.nickname || '',
     password: '',
+    new_password: '',
+    avatar_url: row.avatar_url || '',
     status: row.status || 'active',
-    role_ids: roleIds(row),
+    role_codes: roleCodes(row),
   })
   dialogVisible.value = true
 }
 
 async function save() {
   if (current.value) {
-    await adminsApi.update(current.value.id, {
-      username: form.username,
+    const data: Partial<AdminProfile> & { new_password?: string } = {
       email: form.email,
       nickname: form.nickname,
+      avatar_url: form.avatar_url,
       status: form.status,
-    })
-    await adminsApi.setRoles(current.value.id, form.role_ids)
+    }
+    if (form.new_password) data.new_password = form.new_password
+    await adminsApi.update(current.value.id, data)
+    await adminsApi.setRoles(current.value.id, form.role_codes)
   } else {
-    await adminsApi.create(form)
+    await adminsApi.create({
+      username: normalizeCode(form.username),
+      email: form.email,
+      nickname: form.nickname,
+      avatar_url: form.avatar_url,
+      password: form.password,
+      role_codes: form.role_codes,
+    })
   }
   ElMessage.success('管理员已保存')
   dialogVisible.value = false
@@ -178,7 +197,9 @@ onMounted(async () => {
     <el-dialog v-model="dialogVisible" :title="current ? '编辑管理员' : '新建管理员'" width="640px">
       <el-form label-position="top">
         <div class="form-grid two">
-          <el-form-item label="账号"><el-input v-model="form.username" /></el-form-item>
+          <el-form-item label="账号">
+            <el-input v-model="form.username" :disabled="Boolean(current)" @input="form.username = normalizeCode(String($event))" />
+          </el-form-item>
           <el-form-item label="邮箱"><el-input v-model="form.email" /></el-form-item>
           <el-form-item label="昵称"><el-input v-model="form.nickname" /></el-form-item>
           <el-form-item label="状态">
@@ -188,12 +209,16 @@ onMounted(async () => {
             </el-select>
           </el-form-item>
         </div>
+        <el-form-item label="头像 URL"><el-input v-model="form.avatar_url" /></el-form-item>
         <el-form-item v-if="!current" label="初始密码">
           <el-input v-model="form.password" type="password" show-password />
         </el-form-item>
+        <el-form-item v-else label="重置密码">
+          <el-input v-model="form.new_password" type="password" show-password placeholder="留空则不修改" />
+        </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="form.role_ids" multiple clearable class="full-width">
-            <el-option v-for="role in roles" :key="role.id" :label="role.name" :value="role.id" />
+          <el-select v-model="form.role_codes" multiple clearable class="full-width">
+            <el-option v-for="role in roles" :key="role.code || role.id" :label="role.name" :value="role.code" />
           </el-select>
         </el-form-item>
       </el-form>

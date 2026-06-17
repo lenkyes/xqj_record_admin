@@ -27,7 +27,7 @@ onMounted(load)
 
 <template>
   <div class="page-flow" v-loading="loading">
-    <PageHeader title="系统健康" description="读取 /health，观察服务、数据库、对象存储和运行版本。" permission="system.read">
+    <PageHeader title="系统健康" description="读取 /health，观察 MySQL 与 Redis 连接状态。" permission="system.read">
       <template #actions>
         <el-button :icon="RefreshCw" @click="load">刷新</el-button>
         <el-button @click="drawerVisible = true">原始 JSON</el-button>
@@ -35,9 +35,9 @@ onMounted(load)
     </PageHeader>
 
     <section class="metric-grid">
-      <MetricCard title="服务状态" :value="health.status || 'unknown'" note="admin health" tone="#36c6a5" :icon="Server" />
-      <MetricCard title="数据库" :value="health.database || 'unknown'" note="primary connection" tone="#4aa3ff" :icon="Database" />
-      <MetricCard title="对象存储" :value="health.storage || 'unknown'" note="MinIO/object store" tone="#ef7f64" :icon="HardDrive" />
+      <MetricCard title="服务状态" :value="health.status || 'ok'" note="admin health" tone="#36c6a5" :icon="Server" />
+      <MetricCard title="MySQL" :value="health.mysql || health.database || 'unknown'" note="primary connection" tone="#4aa3ff" :icon="Database" />
+      <MetricCard title="Redis" :value="health.redis || health.storage || 'unknown'" note="session/cache" tone="#ef7f64" :icon="HardDrive" />
       <MetricCard title="运行版本" :value="asText(health.version)" :note="formatDateTime(health.checked_at)" tone="#f6b44b" :icon="Activity" />
     </section>
 
@@ -51,15 +51,15 @@ onMounted(load)
       <div class="health-matrix">
         <div class="health-row">
           <span>status</span>
-          <StatusBadge :status="health.status || 'unknown'" />
+          <StatusBadge :status="health.status || 'ok'" />
         </div>
         <div class="health-row">
-          <span>database</span>
-          <StatusBadge :status="health.database || 'unknown'" />
+          <span>mysql</span>
+          <StatusBadge :status="health.mysql || health.database || 'unknown'" />
         </div>
         <div class="health-row">
-          <span>storage</span>
-          <StatusBadge :status="health.storage || 'unknown'" />
+          <span>redis</span>
+          <StatusBadge :status="health.redis || health.storage || 'unknown'" />
         </div>
         <div class="health-row">
           <span>uptime</span>

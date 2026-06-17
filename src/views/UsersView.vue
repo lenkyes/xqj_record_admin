@@ -7,7 +7,7 @@ import JsonDrawer from '@/components/JsonDrawer.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { usePagedList } from '@/composables/usePagedList'
-import type { AppUser } from '@/types/api'
+import type { AppUser, UserDetail } from '@/types/api'
 import { formatDateTime, getField } from '@/utils/format'
 
 const {
@@ -30,24 +30,30 @@ const {
 const drawerVisible = ref(false)
 const editVisible = ref(false)
 const current = ref<AppUser | null>(null)
+const detail = ref<UserDetail | AppUser | null>(null)
 const editForm = reactive({
   nickname: '',
+  avatar_url: '',
   status: 'active',
 })
 
 async function openDetail(row: AppUser) {
   current.value = row
+  detail.value = row
   drawerVisible.value = true
   try {
-    current.value = await usersApi.detail(row.id)
+    const result = await usersApi.detail(row.id)
+    current.value = result.user
+    detail.value = result
   } catch {
-    current.value = row
+    detail.value = row
   }
 }
 
 function openEdit(row: AppUser) {
   current.value = row
   editForm.nickname = row.nickname || ''
+  editForm.avatar_url = row.avatar_url || ''
   editForm.status = row.status || 'active'
   editVisible.value = true
 }
@@ -56,6 +62,7 @@ async function saveEdit() {
   if (!current.value) return
   await usersApi.update(current.value.id, {
     nickname: editForm.nickname,
+    avatar_url: editForm.avatar_url,
     status: editForm.status,
   })
   ElMessage.success('用户资料已更新')
@@ -147,12 +154,15 @@ async function toggleStatus(row: AppUser) {
       </div>
     </section>
 
-    <JsonDrawer v-model="drawerVisible" title="用户详情" :data="current" />
+    <JsonDrawer v-model="drawerVisible" title="用户详情" :data="detail" />
 
     <el-dialog v-model="editVisible" title="编辑用户" width="460px">
       <el-form label-position="top">
         <el-form-item label="昵称">
           <el-input v-model="editForm.nickname" placeholder="昵称" />
+        </el-form-item>
+        <el-form-item label="头像 URL">
+          <el-input v-model="editForm.avatar_url" placeholder="https://example.com/avatar.png" />
         </el-form-item>
         <el-form-item label="状态">
           <el-segmented

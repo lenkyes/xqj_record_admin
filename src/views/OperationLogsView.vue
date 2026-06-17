@@ -21,10 +21,10 @@ const {
   reset,
   onPageChange,
   onSizeChange,
-} = usePagedList<OperationLog, { method: string; result: string; path: string }>(auditApi.operationLogs, {
-  method: '',
+} = usePagedList<OperationLog, { admin_user_id: string; result: string; keyword: string }>(auditApi.operationLogs, {
+  admin_user_id: '',
   result: '',
-  path: '',
+  keyword: '',
 })
 
 const current = ref<OperationLog | null>(null)
@@ -53,17 +53,12 @@ async function openDetail(row: OperationLog) {
 
     <section class="table-panel">
       <div class="table-toolbar">
-        <el-select v-model="filters.method" class="toolbar-select" placeholder="方法" clearable>
-          <el-option label="GET" value="GET" />
-          <el-option label="POST" value="POST" />
-          <el-option label="PATCH" value="PATCH" />
-          <el-option label="DELETE" value="DELETE" />
-        </el-select>
         <el-select v-model="filters.result" class="toolbar-select" placeholder="结果" clearable>
           <el-option label="success" value="success" />
           <el-option label="failed" value="failed" />
         </el-select>
-        <el-input v-model="filters.path" class="toolbar-input" placeholder="接口路径" clearable>
+        <el-input v-model="filters.admin_user_id" class="toolbar-select" placeholder="管理员 ID" clearable />
+        <el-input v-model="filters.keyword" class="toolbar-input" placeholder="接口路径 / 目标 / 动作" clearable>
           <template #prefix><Search :size="16" /></template>
         </el-input>
         <el-button type="primary" @click="search">筛选</el-button>

@@ -5,6 +5,7 @@ import type {
   AppUser,
   DashboardData,
   Family,
+  FamilyDetail,
   FamilyMember,
   HealthData,
   ItemRecord,
@@ -17,10 +18,30 @@ import type {
   PageResult,
   Permission,
   Role,
+  UserDetail,
+  CreateNotificationResult,
 } from '@/types/api'
 
 function list<T>(url: string, params?: PageQuery) {
-  return requestData<PageResult<T> | T[]>({ url, method: 'GET', params }).then(normalizePage<T>)
+  return requestData<PageResult<T> | T[]>({ url, method: 'GET', params: cleanParams(params) }).then(normalizePage<T>)
+}
+
+function arrayList<T>(url: string, params?: PageQuery) {
+  return requestData<T[]>({ url, method: 'GET', params: cleanParams(params) }).then((items) =>
+    normalizePage<T>({
+      items: items || [],
+      total: items?.length || 0,
+      page: 1,
+      page_size: items?.length || 20,
+    }),
+  )
+}
+
+function cleanParams(params?: PageQuery | Record<string, unknown>) {
+  if (!params) return undefined
+  return Object.fromEntries(
+    Object.entries(params).filter(([, value]) => value !== '' && value !== undefined && value !== null),
+  )
 }
 
 const RELEASE_UPLOAD_TIMEOUT = 5 * 60 * 1000
@@ -44,7 +65,7 @@ export const authApi = {
     return requestData<AdminProfile>({ url: '/me', method: 'GET' })
   },
   changePassword(data: { old_password: string; new_password: string }) {
-    return requestData<null>({ url: '/me/password', method: 'PATCH', data })
+    return requestData<{ changed: boolean }>({ url: '/me/password', method: 'PATCH', data })
   },
 }
 
@@ -58,11 +79,11 @@ export const dashboardApi = {
 }
 
 export const rbacApi = {
-  permissions() {
-    return requestData<Permission[]>({ url: '/permissions', method: 'GET' })
+  permissions(params?: { module?: string }) {
+    return requestData<Permission[]>({ url: '/permissions', method: 'GET', params })
   },
   roles(params?: PageQuery) {
-    return list<Role>('/roles', params)
+    return arrayList<Role>('/roles', params)
   },
   createRole(data: Partial<Role> & { permission_codes?: string[] }) {
     return requestData<Role>({ url: '/roles', method: 'POST', data })
@@ -79,14 +100,14 @@ export const adminsApi = {
   list(params?: PageQuery) {
     return list<AdminProfile>('/admins', params)
   },
-  create(data: Partial<AdminProfile> & { password?: string; role_ids?: number[] }) {
+  create(data: Partial<AdminProfile> & { password?: string; role_codes?: string[] }) {
     return requestData<AdminProfile>({ url: '/admins', method: 'POST', data })
   },
   update(id: number, data: Partial<AdminProfile>) {
     return requestData<AdminProfile>({ url: `/admins/${id}`, method: 'PATCH', data })
   },
-  setRoles(id: number, role_ids: number[]) {
-    return requestData<AdminProfile>({ url: `/admins/${id}/roles`, method: 'POST', data: { role_ids } })
+  setRoles(id: number, role_codes: string[]) {
+    return requestData<AdminProfile>({ url: `/admins/${id}/roles`, method: 'POST', data: { role_codes } })
   },
   disable(id: number) {
     return requestData<null>({ url: `/admins/${id}/disable`, method: 'POST' })
@@ -101,7 +122,7 @@ export const usersApi = {
     return list<AppUser>('/users', params)
   },
   detail(id: number) {
-    return requestData<AppUser>({ url: `/users/${id}`, method: 'GET' })
+    return requestData<UserDetail>({ url: `/users/${id}`, method: 'GET' })
   },
   update(id: number, data: Partial<AppUser>) {
     return requestData<AppUser>({ url: `/users/${id}`, method: 'PATCH', data })
@@ -119,7 +140,7 @@ export const familiesApi = {
     return list<Family>('/families', params)
   },
   detail(id: number) {
-    return requestData<Family>({ url: `/families/${id}`, method: 'GET' })
+    return requestData<FamilyDetail>({ url: `/families/${id}`, method: 'GET' })
   },
   members(id: number, params?: PageQuery) {
     return list<FamilyMember>(`/families/${id}/members`, params)
@@ -158,7 +179,18 @@ export const mediaApi = {
 
 export const releasesApi = {
   list(params?: PageQuery) {
-    return list<AppRelease>('/app/releases', params)
+    const { page_size, page, ...rest } = params || {}
+    const limit = Number(rest.limit || page_size || 50)
+    return requestData<AppRelease[]>({
+      url: '/app/releases',
+      method: 'GET',
+      params: cleanParams({ ...rest, limit }),
+    }).then((items) => ({
+      items: items || [],
+      total: items?.length || 0,
+      page: Number(page || 1),
+      page_size: limit,
+    }))
   },
   detail(id: number) {
     return requestData<AppRelease>({ url: `/app/releases/${id}`, method: 'GET' })
@@ -166,12 +198,11 @@ export const releasesApi = {
   create(data: FormData | Partial<AppRelease>) {
     return requestData<AppRelease>({ url: '/app/releases', method: 'POST', data, timeout: RELEASE_UPLOAD_TIMEOUT })
   },
-  update(id: number, data: FormData | Partial<AppRelease>) {
+  update(id: number, data: Partial<AppRelease> & { clear_title?: boolean; clear_release_notes?: boolean }) {
     return requestData<AppRelease>({
       url: `/app/releases/${id}`,
       method: 'PATCH',
       data,
-      timeout: RELEASE_UPLOAD_TIMEOUT,
     })
   },
   publish(id: number) {
@@ -194,7 +225,7 @@ export const notificationsApi = {
     return list<NotificationRecord>('/notifications', params)
   },
   create(data: Partial<NotificationRecord>) {
-    return requestData<NotificationRecord>({ url: '/notifications', method: 'POST', data })
+    return requestData<CreateNotificationResult>({ url: '/notifications', method: 'POST', data })
   },
 }
 

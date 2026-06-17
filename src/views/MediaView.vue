@@ -21,10 +21,10 @@ const {
   reset,
   onPageChange,
   onSizeChange,
-} = usePagedList<MediaRecord, { keyword: string; item_id: string; family_id: string }>(mediaApi.list, {
-  keyword: '',
+} = usePagedList<MediaRecord, { type: string; item_id: string; user_id: string }>(mediaApi.list, {
+  type: '',
   item_id: '',
-  family_id: '',
+  user_id: '',
 })
 
 const current = ref<MediaRecord | null>(null)
@@ -49,7 +49,7 @@ async function remove(row: MediaRecord) {
 
 <template>
   <div class="page-flow">
-    <PageHeader title="媒体库" description="查看媒体记录与对象信息，可触发后端删除媒体记录和 MinIO 对象。" permission="media.read">
+    <PageHeader title="媒体库" description="查看媒体记录与对象信息，可触发后端删除媒体记录和对象存储文件。" permission="media.read">
       <template #actions>
         <el-button :icon="RefreshCw" @click="load">刷新</el-button>
       </template>
@@ -57,11 +57,14 @@ async function remove(row: MediaRecord) {
 
     <section class="table-panel">
       <div class="table-toolbar">
-        <el-input v-model="filters.keyword" class="toolbar-input" placeholder="对象 Key / MIME / URL" clearable>
+        <el-select v-model="filters.type" class="toolbar-select" placeholder="类型" clearable>
+          <el-option label="图片" value="image" />
+          <el-option label="视频" value="video" />
+        </el-select>
+        <el-input v-model="filters.item_id" class="toolbar-select" placeholder="物品 ID" clearable />
+        <el-input v-model="filters.user_id" class="toolbar-select" placeholder="用户 ID" clearable>
           <template #prefix><Search :size="16" /></template>
         </el-input>
-        <el-input v-model="filters.item_id" class="toolbar-select" placeholder="物品 ID" clearable />
-        <el-input v-model="filters.family_id" class="toolbar-select" placeholder="家庭 ID" clearable />
         <el-button type="primary" @click="search">筛选</el-button>
         <el-button @click="reset">重置</el-button>
       </div>
@@ -71,11 +74,11 @@ async function remove(row: MediaRecord) {
         <el-table-column label="预览" width="120">
           <template #default="{ row }">
             <el-image
-              v-if="row.url"
+              v-if="row.thumbnail_url || row.url"
               class="media-thumb"
-              :src="row.url"
+              :src="row.thumbnail_url || row.url"
               fit="cover"
-              :preview-src-list="[row.url]"
+              :preview-src-list="row.url ? [row.url] : []"
               preview-teleported
             />
             <div v-else class="media-thumb empty">FILE</div>
@@ -84,13 +87,14 @@ async function remove(row: MediaRecord) {
         <el-table-column label="对象">
           <template #default="{ row }">
             <div class="stacked-cell">
-              <strong>{{ getField(row, ['object_key', 'url'], `媒体 #${row.id}`) }}</strong>
-              <span>{{ getField(row, ['mime_type', 'content_type'], '-') }} · {{ formatBytes(row.size) }}</span>
+              <strong>{{ getField(row, ['object_name', 'object_key', 'url'], `媒体 #${row.id}`) }}</strong>
+              <span>{{ getField(row, ['content_type', 'mime_type', 'type'], '-') }} · {{ formatBytes(row.size) }}</span>
             </div>
           </template>
         </el-table-column>
+        <el-table-column prop="type" label="类型" width="100" />
         <el-table-column prop="item_id" label="物品 ID" width="110" />
-        <el-table-column prop="family_id" label="家庭 ID" width="110" />
+        <el-table-column prop="user_id" label="用户 ID" width="110" />
         <el-table-column label="创建时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
         </el-table-column>

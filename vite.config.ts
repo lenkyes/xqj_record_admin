@@ -1,6 +1,14 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig, loadEnv } from 'vite'
+import { createLogger, defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+
+const logger = createLogger()
+const loggerWarn = logger.warn
+
+logger.warn = (message, options) => {
+  if (message.includes('[INVALID_ANNOTATION]') && message.includes('node_modules/@vueuse/core')) return
+  loggerWarn(message, options)
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -22,5 +30,21 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    build: {
+      chunkSizeWarningLimit: 900,
+      rolldownOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return
+            if (id.includes('element-plus') || id.includes('@element-plus')) return 'vendor-element'
+            if (id.includes('echarts') || id.includes('zrender')) return 'vendor-charts'
+            if (id.includes('vue') || id.includes('pinia')) return 'vendor-vue'
+            if (id.includes('@lucide')) return 'vendor-icons'
+            return 'vendor'
+          },
+        },
+      },
+    },
+    customLogger: logger,
   }
 })

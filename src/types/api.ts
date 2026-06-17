@@ -43,7 +43,11 @@ export interface AdminProfile {
   username: string
   nickname?: string
   email?: string
+  avatar_url?: string
   status: Status
+  totp_enabled?: boolean
+  last_login_at?: string
+  last_login_ip?: string
   roles?: Role[]
   permissions?: PermissionCode[]
   created_at?: string
@@ -63,8 +67,11 @@ export interface Permission {
   id?: number
   code: PermissionCode
   name?: string
+  module?: string
   description?: string
   group?: string
+  created_at?: string
+  updated_at?: string
   [key: string]: unknown
 }
 
@@ -73,6 +80,7 @@ export interface Role {
   name: string
   code?: string
   description?: string
+  builtin?: boolean
   permissions?: Permission[] | PermissionCode[]
   created_at?: string
   updated_at?: string
@@ -86,16 +94,29 @@ export interface AppUser {
   phone?: string
   email?: string
   avatar_url?: string
+  storage_prefix?: string
   status: Status
   created_at?: string
   updated_at?: string
   [key: string]: unknown
 }
 
+export interface UserDetail {
+  user: AppUser
+  family_count: number
+  item_count: number
+  media_count: number
+  [key: string]: unknown
+}
+
 export interface Family {
   id: number
   name?: string
+  owner_id?: number
   owner_user_id?: number
+  owner?: AppUser | Record<string, unknown>
+  invite_code?: string
+  storage_prefix?: string
   member_count?: number
   item_count?: number
   status?: Status
@@ -104,12 +125,23 @@ export interface Family {
   [key: string]: unknown
 }
 
+export interface FamilyDetail {
+  family: Family
+  member_count: number
+  item_count: number
+  [key: string]: unknown
+}
+
 export interface FamilyMember {
   id?: number
+  family_id?: number
   user_id?: number
+  user?: AppUser | Record<string, unknown>
   nickname?: string
   role?: string
+  remark_name?: string
   joined_at?: string
+  created_at?: string
   [key: string]: unknown
 }
 
@@ -117,11 +149,23 @@ export interface ItemRecord {
   id: number
   name?: string
   title?: string
+  description?: string
+  quantity?: number
+  min_quantity?: number | null
+  low_stock?: boolean
+  unit?: string
   family_id?: number
   user_id?: number
-  category?: string
+  category_id?: number
+  category?: unknown
   status?: Status
   location?: string
+  barcode?: string
+  expires_at?: string | null
+  long_term?: boolean
+  is_expired?: boolean
+  expires_in_seconds?: number
+  media?: MediaRecord[]
   created_at?: string
   updated_at?: string
   deleted_at?: string
@@ -131,9 +175,14 @@ export interface ItemRecord {
 export interface MediaRecord {
   id: number
   item_id?: number
+  user_id?: number
   family_id?: number
+  type?: 'image' | 'video' | string
   url?: string
+  thumbnail_url?: string
+  object_name?: string
   object_key?: string
+  content_type?: string
   mime_type?: string
   size?: number
   created_at?: string
@@ -152,6 +201,14 @@ export interface AppRelease {
   title?: string
   release_notes?: string
   file_url?: string
+  download_url?: string
+  object_name?: string
+  size?: number
+  sha256?: string
+  content_type?: string
+  created_by_admin_id?: number
+  updated_by_admin_id?: number
+  published_by_admin_id?: number
   created_at?: string
   updated_at?: string
   published_at?: string
@@ -166,8 +223,15 @@ export interface NotificationRecord {
   type?: string
   title?: string
   body?: string
+  entity_type?: string
+  entity_id?: number
+  read_at?: string | null
   created_at?: string
   [key: string]: unknown
+}
+
+export interface CreateNotificationResult {
+  created: number
 }
 
 export interface OperationLog {
@@ -195,11 +259,11 @@ export interface OperationLog {
 export interface LoginLog {
   id?: number
   admin_user_id?: number
-  username?: string
+  account?: string
   ip?: string
   user_agent?: string
-  result?: string
-  error_message?: string
+  success?: boolean
+  failure_reason?: string
   created_at?: string
   [key: string]: unknown
 }
@@ -208,6 +272,8 @@ export interface HealthData {
   status?: string
   database?: string
   storage?: string
+  mysql?: string
+  redis?: string
   version?: string
   uptime?: number
   checked_at?: string
@@ -215,6 +281,21 @@ export interface HealthData {
 }
 
 export interface DashboardData {
+  summary?: {
+    users?: number
+    families?: number
+    items?: number
+    media?: number
+    app_releases?: number
+    notifications?: number
+    [key: string]: unknown
+  }
+  today?: {
+    new_users?: number
+    new_items?: number
+    [key: string]: unknown
+  }
+  pending_tasks?: number
   users_total?: number
   families_total?: number
   items_total?: number

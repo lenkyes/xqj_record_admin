@@ -20,8 +20,8 @@ const {
   reset,
   onPageChange,
   onSizeChange,
-} = usePagedList<NotificationRecord, { scope: string; type: string }>(notificationsApi.list, {
-  scope: '',
+} = usePagedList<NotificationRecord, { user_id: string; type: string }>(notificationsApi.list, {
+  user_id: '',
   type: '',
 })
 
@@ -35,8 +35,8 @@ const form = reactive({
 })
 
 async function createNotification() {
-  await notificationsApi.create(form)
-  ElMessage.success('通知已创建')
+  const result = await notificationsApi.create(form)
+  ElMessage.success(`通知已创建 ${result.created} 条`)
   form.title = ''
   form.body = ''
   load()
@@ -86,11 +86,7 @@ async function createNotification() {
 
       <article class="table-panel compact">
         <div class="table-toolbar">
-          <el-select v-model="filters.scope" class="toolbar-select" placeholder="范围" clearable>
-            <el-option label="全体" value="all" />
-            <el-option label="用户" value="user" />
-            <el-option label="家庭" value="family" />
-          </el-select>
+          <el-input v-model="filters.user_id" class="toolbar-select" placeholder="用户 ID" clearable />
           <el-input v-model="filters.type" class="toolbar-select" placeholder="类型" clearable />
           <el-button type="primary" @click="search">筛选</el-button>
           <el-button @click="reset">重置</el-button>

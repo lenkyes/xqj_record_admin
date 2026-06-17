@@ -38,14 +38,21 @@ export function getField<T = unknown>(row: Record<string, unknown>, keys: string
 export function statusLabel(status?: string) {
   if (status === 'active') return '启用'
   if (status === 'disabled') return '禁用'
+  if (status === 'handled') return '已处理'
+  if (status === 'consumed') return '已消耗'
+  if (status === 'discarded') return '已丢弃'
+  if (status === 'archived') return '已归档'
   if (status === 'published') return '已发布'
   if (status === 'draft') return '草稿'
+  if (status === 'failed') return '失败'
+  if (status === 'success') return '成功'
+  if (status === 'ok') return '正常'
   return status || '-'
 }
 
 export function statusType(status?: string) {
   if (status === 'active' || status === 'success' || status === 'ok') return 'success'
   if (status === 'disabled' || status === 'failed' || status === 'error') return 'danger'
-  if (status === 'pending' || status === 'warning') return 'warning'
+  if (status === 'pending' || status === 'warning' || status === 'low_stock' || status === 'expiring') return 'warning'
   return 'info'
 }

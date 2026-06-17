@@ -20,31 +20,34 @@ let chart: ECharts | null = null
 
 use([BarChart, LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
+const summary = computed(() => overview.value.summary || {})
+const today = computed(() => overview.value.today || {})
+
 const metrics = computed(() => [
   {
     title: '用户总量',
-    value: overview.value.users_total ?? '-',
-    note: `今日活跃 ${overview.value.today_active_users ?? '-'}`,
+    value: summary.value.users ?? overview.value.users_total ?? '-',
+    note: `今日新增 ${today.value.new_users ?? overview.value.today_active_users ?? '-'}`,
     tone: '#4aa3ff',
     icon: Users,
   },
   {
     title: '家庭空间',
-    value: overview.value.families_total ?? '-',
+    value: summary.value.families ?? overview.value.families_total ?? '-',
     note: '家庭协作单元',
     tone: '#ef7f64',
     icon: Warehouse,
   },
   {
     title: '物品记录',
-    value: overview.value.items_total ?? '-',
-    note: '库存与记忆归档',
+    value: summary.value.items ?? overview.value.items_total ?? '-',
+    note: `今日新增 ${today.value.new_items ?? '-'}`,
     tone: '#a5cd58',
     icon: Boxes,
   },
   {
     title: '媒体资源',
-    value: overview.value.media_total ?? '-',
+    value: summary.value.media ?? overview.value.media_total ?? '-',
     note: 'MinIO 对象索引',
     tone: '#d88cf0',
     icon: Image,
@@ -52,9 +55,8 @@ const metrics = computed(() => [
 ])
 
 const numericTrend = computed(() => {
-  const values = Object.entries(overview.value)
+  const values = Object.entries(summary.value)
     .filter(([, value]) => typeof value === 'number')
-    .slice(0, 8)
     .map(([name, value]) => ({ name, value: Number(value) }))
 
   if (values.length) return values
@@ -173,19 +175,19 @@ onBeforeUnmount(() => {
         <div class="health-stack">
           <div class="health-row">
             <span>服务</span>
-            <StatusBadge :status="health.status || 'unknown'" />
+            <StatusBadge :status="health.status || 'ok'" />
           </div>
           <div class="health-row">
-            <span>数据库</span>
-            <StatusBadge :status="health.database || 'unknown'" />
+            <span>MySQL</span>
+            <StatusBadge :status="health.mysql || health.database || 'unknown'" />
           </div>
           <div class="health-row">
-            <span>对象存储</span>
-            <StatusBadge :status="health.storage || 'unknown'" />
+            <span>Redis</span>
+            <StatusBadge :status="health.redis || health.storage || 'unknown'" />
           </div>
           <div class="health-row">
-            <span>版本</span>
-            <strong>{{ asText(health.version) }}</strong>
+            <span>待处理任务</span>
+            <strong>{{ asText(overview.pending_tasks ?? overview.pending_releases) }}</strong>
           </div>
           <div class="health-row">
             <span>检查时间</span>

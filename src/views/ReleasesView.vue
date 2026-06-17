@@ -39,9 +39,11 @@ const form = reactive({
   channel: 'stable',
   version_name: '',
   version_code: 1,
-  min_supported_version_code: 1,
+  min_supported_version_code: 0,
   force_update: false,
-  published: false,
+  published: true,
+  clear_title: false,
+  clear_release_notes: false,
   title: '',
   release_notes: '',
 })
@@ -54,9 +56,11 @@ function openCreate() {
     channel: 'stable',
     version_name: '',
     version_code: 1,
-    min_supported_version_code: 1,
+    min_supported_version_code: 0,
     force_update: false,
-    published: false,
+    published: true,
+    clear_title: false,
+    clear_release_notes: false,
     title: '',
     release_notes: '',
   })
@@ -71,9 +75,11 @@ function openEdit(row: AppRelease) {
     channel: row.channel || 'stable',
     version_name: row.version_name || '',
     version_code: row.version_code || 1,
-    min_supported_version_code: row.min_supported_version_code || 1,
+    min_supported_version_code: row.min_supported_version_code || 0,
     force_update: Boolean(row.force_update),
     published: Boolean(row.published),
+    clear_title: false,
+    clear_release_notes: false,
     title: row.title || '',
     release_notes: row.release_notes || '',
   })
@@ -98,6 +104,19 @@ function toFormData() {
   return data
 }
 
+function toUpdatePayload() {
+  return {
+    version_name: form.version_name,
+    min_supported_version_code: form.min_supported_version_code,
+    force_update: form.force_update,
+    published: form.published,
+    title: form.clear_title ? undefined : form.title,
+    clear_title: form.clear_title,
+    release_notes: form.clear_release_notes ? undefined : form.release_notes,
+    clear_release_notes: form.clear_release_notes,
+  }
+}
+
 function isMessageBoxCancel(error: unknown) {
   return error === 'cancel' || error === 'close'
 }
@@ -111,7 +130,7 @@ async function save() {
 
   saving.value = true
   try {
-    if (current.value) await releasesApi.update(current.value.id, toFormData())
+    if (current.value) await releasesApi.update(current.value.id, toUpdatePayload())
     else await releasesApi.create(toFormData())
     ElMessage.success('版本信息已保存')
     dialogVisible.value = false
@@ -249,19 +268,23 @@ async function remove(row: AppRelease) {
     >
       <el-form label-position="top" class="release-form">
         <div class="form-grid two">
-          <el-form-item label="平台"><el-input v-model="form.platform" /></el-form-item>
-          <el-form-item label="渠道"><el-input v-model="form.channel" /></el-form-item>
+          <el-form-item label="平台"><el-input v-model="form.platform" :disabled="Boolean(current)" /></el-form-item>
+          <el-form-item label="渠道"><el-input v-model="form.channel" :disabled="Boolean(current)" /></el-form-item>
           <el-form-item label="版本名"><el-input v-model="form.version_name" placeholder="1.2.0" /></el-form-item>
-          <el-form-item label="版本号"><el-input-number v-model="form.version_code" :min="1" controls-position="right" /></el-form-item>
+          <el-form-item label="版本号"><el-input-number v-model="form.version_code" :min="1" controls-position="right" :disabled="Boolean(current)" /></el-form-item>
           <el-form-item label="最低支持版本号">
-            <el-input-number v-model="form.min_supported_version_code" :min="1" controls-position="right" />
+            <el-input-number v-model="form.min_supported_version_code" :min="0" controls-position="right" />
           </el-form-item>
           <el-form-item label="发布状态"><el-switch v-model="form.published" active-text="发布" inactive-text="草稿" /></el-form-item>
         </div>
-        <el-form-item label="标题"><el-input v-model="form.title" /></el-form-item>
-        <el-form-item label="发布说明"><el-input v-model="form.release_notes" type="textarea" :rows="4" /></el-form-item>
+        <el-form-item label="标题"><el-input v-model="form.title" :disabled="form.clear_title" /></el-form-item>
+        <el-form-item v-if="current" label="清空标题"><el-switch v-model="form.clear_title" /></el-form-item>
+        <el-form-item label="发布说明">
+          <el-input v-model="form.release_notes" type="textarea" :rows="4" :disabled="form.clear_release_notes" />
+        </el-form-item>
+        <el-form-item v-if="current" label="清空发布说明"><el-switch v-model="form.clear_release_notes" /></el-form-item>
         <el-form-item label="强制更新"><el-switch v-model="form.force_update" /></el-form-item>
-        <el-form-item label="APK 文件">
+        <el-form-item v-if="!current" label="APK 文件">
           <el-upload :auto-upload="false" :disabled="saving" :limit="1" accept=".apk" :on-change="onFileChange">
             <el-button :disabled="saving">选择 APK</el-button>
           </el-upload>

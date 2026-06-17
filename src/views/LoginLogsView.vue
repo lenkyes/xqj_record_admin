@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { RefreshCw, Search } from '@lucide/vue'
+import { RefreshCw } from '@lucide/vue'
 import { auditApi } from '@/api/admin'
 import JsonDrawer from '@/components/JsonDrawer.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -21,9 +21,8 @@ const {
   reset,
   onPageChange,
   onSizeChange,
-} = usePagedList<LoginLog, { result: string; keyword: string }>(auditApi.loginLogs, {
-  result: '',
-  keyword: '',
+} = usePagedList<LoginLog, { success: string }>(auditApi.loginLogs, {
+  success: '',
 })
 
 const current = ref<LoginLog | null>(null)
@@ -45,24 +44,21 @@ function openDetail(row: LoginLog) {
 
     <section class="table-panel">
       <div class="table-toolbar">
-        <el-select v-model="filters.result" class="toolbar-select" placeholder="结果" clearable>
-          <el-option label="success" value="success" />
-          <el-option label="failed" value="failed" />
+        <el-select v-model="filters.success" class="toolbar-select" placeholder="结果" clearable>
+          <el-option label="成功" value="true" />
+          <el-option label="失败" value="false" />
         </el-select>
-        <el-input v-model="filters.keyword" class="toolbar-input" placeholder="账号 / IP / UA" clearable>
-          <template #prefix><Search :size="16" /></template>
-        </el-input>
         <el-button type="primary" @click="search">筛选</el-button>
         <el-button @click="reset">重置</el-button>
       </div>
 
       <el-table v-loading="loading" :data="items" stripe class="data-table">
         <el-table-column label="管理员" width="180">
-          <template #default="{ row }">{{ row.username || row.admin_user_id || '-' }}</template>
+          <template #default="{ row }">{{ row.account || row.admin_user_id || '-' }}</template>
         </el-table-column>
         <el-table-column prop="ip" label="IP" width="150" />
         <el-table-column label="结果" width="120">
-          <template #default="{ row }"><StatusBadge :status="row.result" /></template>
+          <template #default="{ row }"><StatusBadge :status="row.success ? 'success' : 'failed'" /></template>
         </el-table-column>
         <el-table-column label="User Agent">
           <template #default="{ row }">

@@ -4,10 +4,9 @@ import { ElMessage } from 'element-plus'
 import { RefreshCw, Search } from '@lucide/vue'
 import { familiesApi } from '@/api/admin'
 import PageHeader from '@/components/PageHeader.vue'
-import StatusBadge from '@/components/StatusBadge.vue'
 import { usePagedList } from '@/composables/usePagedList'
-import type { Family, FamilyMember, ItemRecord } from '@/types/api'
-import { formatDateTime, getField } from '@/utils/format'
+import type { Family, FamilyDetail, FamilyMember, ItemRecord } from '@/types/api'
+import { asText, formatDateTime, getField } from '@/utils/format'
 
 const {
   loading,
@@ -21,38 +20,44 @@ const {
   reset,
   onPageChange,
   onSizeChange,
-} = usePagedList<Family, { keyword: string; status: string }>(familiesApi.list, {
+} = usePagedList<Family, { keyword: string }>(familiesApi.list, {
   keyword: '',
-  status: '',
 })
 
 const drawerVisible = ref(false)
 const detailLoading = ref(false)
 const current = ref<Family | null>(null)
+const detail = ref<FamilyDetail | null>(null)
 const members = ref<FamilyMember[]>([])
 const familyItems = ref<ItemRecord[]>([])
 const editForm = reactive({
   name: '',
-  status: '',
 })
 
 async function openDetail(row: Family) {
   drawerVisible.value = true
   detailLoading.value = true
   current.value = row
+  detail.value = null
   members.value = []
   familyItems.value = []
   try {
-    const [detail, memberPage, itemPage] = await Promise.allSettled([
+    const [familyDetail, memberPage, itemPage] = await Promise.allSettled([
       familiesApi.detail(row.id),
       familiesApi.members(row.id, { page: 1, page_size: 10 }),
       familiesApi.items(row.id, { page: 1, page_size: 10 }),
     ])
-    if (detail.status === 'fulfilled') current.value = detail.value
+    if (familyDetail.status === 'fulfilled') {
+      detail.value = familyDetail.value
+      current.value = {
+        ...familyDetail.value.family,
+        member_count: familyDetail.value.member_count,
+        item_count: familyDetail.value.item_count,
+      }
+    }
     if (memberPage.status === 'fulfilled') members.value = memberPage.value.items
     if (itemPage.status === 'fulfilled') familyItems.value = itemPage.value.items
     editForm.name = current.value?.name || ''
-    editForm.status = current.value?.status || ''
   } finally {
     detailLoading.value = false
   }
@@ -62,7 +67,6 @@ async function saveEdit() {
   if (!current.value) return
   current.value = await familiesApi.update(current.value.id, {
     name: editForm.name,
-    status: editForm.status,
   })
   ElMessage.success('家庭信息已更新')
   load()
@@ -82,10 +86,6 @@ async function saveEdit() {
         <el-input v-model="filters.keyword" class="toolbar-input" placeholder="家庭名 / ID / 成员关键字" clearable>
           <template #prefix><Search :size="16" /></template>
         </el-input>
-        <el-select v-model="filters.status" class="toolbar-select" placeholder="状态" clearable>
-          <el-option label="启用" value="active" />
-          <el-option label="禁用" value="disabled" />
-        </el-select>
         <el-button type="primary" @click="search">筛选</el-button>
         <el-button @click="reset">重置</el-button>
       </div>
@@ -98,7 +98,7 @@ async function saveEdit() {
               <div class="avatar-spark warm">{{ (row.name || row.id).toString().slice(0, 1) }}</div>
               <div>
                 <strong>{{ getField(row, ['name'], `家庭 #${row.id}`) }}</strong>
-                <span>Owner: {{ getField(row, ['owner_user_id'], '-') }}</span>
+                <span>Owner: {{ getField(row, ['owner_id', 'owner_user_id'], '-') }}</span>
               </div>
             </div>
           </template>
@@ -108,9 +108,6 @@ async function saveEdit() {
         </el-table-column>
         <el-table-column label="物品" width="110">
           <template #default="{ row }">{{ getField(row, ['item_count', 'items_count'], '-') }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }"><StatusBadge :status="row.status" /></template>
         </el-table-column>
         <el-table-column label="创建时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
@@ -141,8 +138,11 @@ async function saveEdit() {
         <el-descriptions v-if="current" :column="2" border>
           <el-descriptions-item label="ID">{{ current.id }}</el-descriptions-item>
           <el-descriptions-item label="名称">{{ current.name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="Owner">{{ current.owner_user_id || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="状态"><StatusBadge :status="current.status" /></el-descriptions-item>
+          <el-descriptions-item label="Owner">{{ current.owner_id || current.owner_user_id || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="邀请码">{{ current.invite_code || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="成员">{{ current.member_count ?? detail?.member_count ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="物品">{{ current.item_count ?? detail?.item_count ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="存储前缀">{{ current.storage_prefix || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建">{{ formatDateTime(current.created_at) }}</el-descriptions-item>
           <el-descriptions-item label="更新">{{ formatDateTime(current.updated_at) }}</el-descriptions-item>
         </el-descriptions>
@@ -151,22 +151,23 @@ async function saveEdit() {
           <el-form-item label="家庭名称">
             <el-input v-model="editForm.name" />
           </el-form-item>
-          <el-form-item label="状态">
-            <el-input v-model="editForm.status" placeholder="active / disabled" />
-          </el-form-item>
           <el-button type="primary" @click="saveEdit">保存基础信息</el-button>
         </el-form>
 
         <el-tabs>
           <el-tab-pane label="成员">
             <el-table :data="members" size="small">
-              <el-table-column prop="user_id" label="用户 ID" width="100" />
+              <el-table-column label="用户 ID" width="100">
+                <template #default="{ row }">{{ row.user_id || row.user?.id || '-' }}</template>
+              </el-table-column>
               <el-table-column label="昵称">
-                <template #default="{ row }">{{ getField(row, ['nickname', 'username'], '-') }}</template>
+                <template #default="{ row }">
+                  {{ row.remark_name || row.nickname || getField(row.user || {}, ['nickname', 'email', 'phone'], '-') }}
+                </template>
               </el-table-column>
               <el-table-column prop="role" label="角色" width="120" />
               <el-table-column label="加入时间" width="170">
-                <template #default="{ row }">{{ formatDateTime(row.joined_at) }}</template>
+                <template #default="{ row }">{{ formatDateTime(row.created_at || row.joined_at) }}</template>
               </el-table-column>
             </el-table>
           </el-tab-pane>
@@ -176,7 +177,9 @@ async function saveEdit() {
               <el-table-column label="名称">
                 <template #default="{ row }">{{ getField(row, ['name', 'title'], `物品 #${row.id}`) }}</template>
               </el-table-column>
-              <el-table-column prop="category" label="分类" width="120" />
+              <el-table-column label="分类" width="120">
+                <template #default="{ row }">{{ asText(row.category || row.category_id) }}</template>
+              </el-table-column>
               <el-table-column label="创建时间" width="170">
                 <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
               </el-table-column>
